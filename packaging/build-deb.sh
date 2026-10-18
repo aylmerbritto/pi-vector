@@ -28,6 +28,7 @@ cp "$PKG/wirepod-update.service" "$STAGE/lib/systemd/system/wirepod-update.servi
 cp "$PKG/wirepod-update.timer"   "$STAGE/lib/systemd/system/wirepod-update.timer"
 cp "$PKG/wirepod-update"         "$STAGE/usr/bin/wirepod-update"; chmod +x "$STAGE/usr/bin/wirepod-update"
 cp "$PKG/update.conf"            "$STAGE/etc/wirepod/update.conf"
+cp "$PKG/wirepod-setwifi"     "$STAGE/usr/bin/wirepod-setwifi"; chmod +x "$STAGE/usr/bin/wirepod-setwifi"
 
 INSTSIZE=$(du -sk "$STAGE/opt" | cut -f1)
 cat > "$STAGE/DEBIAN/control" <<CTL

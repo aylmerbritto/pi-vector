@@ -1,0 +1,16 @@
+#!/bin/bash
+# Pre-bake a WiFi network so the Pi auto-joins it (e.g. before shipping to a friend).
+# Usage: sudo wirepod-setwifi "SSID" "PASSWORD" [wpa-psk|sae]
+#   wpa-psk (default) covers WPA2 and mixed WPA2/WPA3 home routers; use sae for WPA3-only.
+set -euo pipefail
+SSID="${1:?Usage: sudo wirepod-setwifi \"SSID\" \"PASSWORD\" [wpa-psk|sae]}"
+PSK="${2:?password required}"
+SEC="${3:-wpa-psk}"
+IFACE="$(nmcli -t -f DEVICE,TYPE device | awk -F: '$2=="wifi"{print $1; exit}')"
+: "${IFACE:=wlan0}"
+nmcli connection delete "$SSID" >/dev/null 2>&1 || true
+nmcli connection add type wifi con-name "$SSID" ifname "$IFACE" ssid "$SSID" \
+  wifi-sec.key-mgmt "$SEC" wifi-sec.psk "$PSK" \
+  connection.autoconnect yes connection.autoconnect-priority 10 >/dev/null
+echo "Saved WiFi '$SSID' (autoconnect). The Pi will join it whenever it's in range."
+echo "Saved networks:"; nmcli -t -f NAME,TYPE connection show | awk -F: '$2 ~ /wireless/{print "  "$1}'
