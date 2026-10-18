@@ -1,0 +1,1 @@
+{"weather":{"enable":false,"provider":"","key":"","unit":""},"knowledge":{"enable":false,"provider":"","key":"","id":"","model":"","intentgraph":false,"robotName":"","save_chat":false,"commands_enable":false,"endpoint":"","top_p":0,"temp":0},"STT":{"provider":"vosk","language":"en-US"},"server":{"epconfig":true,"port":"443"},"hasreadfromenv":true,"pastinitialsetup":true}

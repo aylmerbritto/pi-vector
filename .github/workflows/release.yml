@@ -1,0 +1,80 @@
+name: build-and-release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version: { description: "version (no v)", required: true, default: "0.0.0" }
+
+permissions:
+  contents: write
+
+env:
+  WIREPOD_REF: main
+  VOSK_LIB_VER: "0.3.45"
+  VOSK_MODEL: "vosk-model-small-en-us-0.15"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm   # arm64 runner (free for public repos)
+    steps:
+      - name: Checkout packaging repo
+        uses: actions/checkout@v4
+
+      - name: Version from tag or input
+        id: ver
+        run: |
+          if [ "${{ github.ref_type }}" = tag ]; then V="${GITHUB_REF_NAME#v}"; else V="${{ inputs.version }}"; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Install build deps (incl. binutils-gold — required on Debian/Ubuntu arm64)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils-gold build-essential pkg-config git curl unzip \
+            libopus-dev libopusfile-dev libsox-dev libsodium-dev
+
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+
+      - name: Clone wire-pod
+        run: git clone --depth=1 --branch "$WIREPOD_REF" https://github.com/kercre123/wire-pod wire-pod
+
+      - name: Fetch Vosk lib + model
+        run: |
+          mkdir -p "$HOME/.vosk/libvosk" wire-pod/vosk/models
+          curl -fsSL -o vlib.zip "https://github.com/alphacep/vosk-api/releases/download/v${VOSK_LIB_VER}/vosk-linux-aarch64-${VOSK_LIB_VER}.zip"
+          unzip -q vlib.zip
+          cp "vosk-linux-aarch64-${VOSK_LIB_VER}/libvosk.so" "vosk-linux-aarch64-${VOSK_LIB_VER}/vosk_api.h" "$HOME/.vosk/libvosk/"
+          curl -fsSL -o model.zip "https://alphacephei.com/vosk/models/${VOSK_MODEL}.zip"
+          unzip -q model.zip
+          mv "${VOSK_MODEL}" wire-pod/vosk/models/en-US
+
+      - name: Build chipper (CGO + gold)
+        run: |
+          cd wire-pod/chipper
+          CGO_ENABLED=1 \
+          CGO_CFLAGS="-I$HOME/.vosk/libvosk" \
+          CGO_LDFLAGS="-L$HOME/.vosk/libvosk -lvosk -ldl -lpthread" \
+          go build -tags nolibopusfile -o chipper cmd/vosk/main.go
+          test -f chipper
+
+      - name: Assemble .deb
+        run: |
+          sudo VERSION="${{ steps.ver.outputs.version }}" \
+               WIREPOD="$PWD/wire-pod" \
+               VOSKLIB="$HOME/.vosk/libvosk/libvosk.so" \
+               PKG="$PWD/packaging" \
+               OUT="$PWD/wirepod_${{ steps.ver.outputs.version }}_arm64.deb" \
+               bash packaging/build-deb.sh
+
+      - name: Publish Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wirepod_*_arm64.deb
+          generate_release_notes: true
+
+      - name: Upload artifact (non-tag runs)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with: { name: wirepod-deb, path: wirepod_*_arm64.deb }

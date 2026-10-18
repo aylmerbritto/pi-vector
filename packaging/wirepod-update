@@ -1,0 +1,28 @@
+#!/bin/bash
+# Check GitHub Releases for a newer wirepod .deb, install it, restart service.
+set -euo pipefail
+export LC_ALL=C
+CONF=/etc/wirepod/update.conf
+[ -r "$CONF" ] && . "$CONF"
+: "${GITHUB_REPO:=}"
+: "${ASSET_GLOB:=wirepod_*_arm64.deb}"
+log(){ echo "[wirepod-update] $*"; }
+if [ -z "$GITHUB_REPO" ]; then log "GITHUB_REPO unset in $CONF; nothing to do."; exit 0; fi
+API="https://api.github.com/repos/$GITHUB_REPO/releases/latest"
+log "checking $API"
+REL=$(curl -fsSL -H "Accept: application/vnd.github+json" "$API") || { log "release check failed"; exit 1; }
+TAG=$(echo "$REL" | jq -r '.tag_name // empty')
+LATEST=${TAG#v}
+CUR=$(dpkg-query -W -f='${Version}' wirepod 2>/dev/null || echo "0")
+log "installed=$CUR latest=$TAG"
+[ -z "$LATEST" ] && { log "no tag in latest release"; exit 0; }
+if dpkg --compare-versions "$LATEST" le "$CUR"; then log "already up to date"; exit 0; fi
+URL=$(echo "$REL" | jq -r '.assets[].browser_download_url' | grep -iE "${ASSET_GLOB//\*/.*}" | head -1)
+[ -z "$URL" ] && { log "no matching .deb asset in release $TAG"; exit 1; }
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+log "downloading $URL"
+curl -fsSL -o "$TMP/wirepod.deb" "$URL"
+log "installing"
+dpkg -i "$TMP/wirepod.deb" || apt-get -y -f install
+systemctl restart wirepod.service || true
+log "updated to $TAG"

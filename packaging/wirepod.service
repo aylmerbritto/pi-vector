@@ -1,0 +1,18 @@
+[Unit]
+Description=wire-pod (escape pod) voice server for Anki Vector
+Wants=network-online.target avahi-daemon.service
+After=network-online.target avahi-daemon.service
+StartLimitIntervalSec=500
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/wirepod/chipper
+Environment=LD_LIBRARY_PATH=/opt/wirepod/lib
+Environment=STT_SERVICE=vosk
+ExecStart=/opt/wirepod/chipper/chipper
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
