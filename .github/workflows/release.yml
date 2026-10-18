@@ -47,7 +47,7 @@ jobs:
           cp "vosk-linux-aarch64-${VOSK_LIB_VER}/libvosk.so" "vosk-linux-aarch64-${VOSK_LIB_VER}/vosk_api.h" "$HOME/.vosk/libvosk/"
           curl -fsSL -o model.zip "https://alphacephei.com/vosk/models/${VOSK_MODEL}.zip"
           unzip -q model.zip
-          mv "${VOSK_MODEL}" wire-pod/vosk/models/en-US
+          mkdir -p wire-pod/vosk/models/en-US && mv "${VOSK_MODEL}" wire-pod/vosk/models/en-US/model
 
       - name: Build chipper (CGO + gold)
         run: |
